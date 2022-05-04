@@ -32,5 +32,22 @@ commaParser (x:rem)
   | x == ',' = Just (Ok, rem)
 commaParser _ = Nothing
 
+parsers :: [Parser]
+parsers = [nullParser, boolParser]
+
+valueParser :: [Parser] -> String -> Maybe (JsonValue, String)
+valueParser [] input = Nothing
+valueParser (p:parsers) input =
+  let res = (p input)
+   in case res of
+        Nothing -> (valueParser parsers input)
+        _ -> res
+
+parser :: String -> [JsonValue]
+parser input =
+  case (valueParser parsers input) of
+    Just (val, rem) -> val : parser rem
+    Nothing -> []
+
 main :: IO ()
 main = undefined
