@@ -39,8 +39,28 @@ numberParser input =
     [(num, rem)] -> Just (JsonNumber num, rem)
     _ -> Nothing
 
+validEscapeChars = ['"', '\\', 'b', 'f', 'n', 'r', 't', 'u']
+
+stringParser [] = Nothing
+stringParser input
+  | input !! 0 /= '"' = Nothing
+  | otherwise =
+    let str = string (drop 1 input) 0
+     in case str of
+          Just (str) -> Just (JsonString str, drop (length str) input)
+          _ -> Nothing
+  where
+    string [] _ = Nothing
+    string (x:xs) i =
+      case x of
+        '\\'
+          | (xs !! 0) `elem` validEscapeChars -> string (drop 1 xs) (i + 2)
+          | otherwise -> Nothing
+        '"' -> Just (take (i + 2) input)
+        _ -> string xs (i + 1)
+
 parsers :: [Parser]
-parsers = [nullParser, boolParser, numberParser]
+parsers = [nullParser, boolParser, numberParser, stringParser]
 
 valueParser :: [Parser] -> String -> Maybe (JsonValue, String)
 valueParser [] input = Nothing
