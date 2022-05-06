@@ -11,7 +11,7 @@ data JsonValue
 
 type Parser = String -> Maybe (JsonValue, String)
 
-nullParser, boolParser, spaceParser, colonParser, commaParser, numberParser ::
+nullParser, boolParser, spaceParser, colonParser, commaParser, numberParser, stringParser ::
      Parser
 nullParser input
   | take 4 input == "null" = Just ((JsonNull, drop 4 input))
@@ -39,25 +39,24 @@ numberParser input =
     [(num, rem)] -> Just (JsonNumber num, rem)
     _ -> Nothing
 
-validEscapeChars = ['"', '\\', 'b', 'f', 'n', 'r', 't', 'u']
+validEscapeChars = ['\"', '\\', '\b', '\f', '\n', '\r', '\t']
 
-stringParser [] = Nothing
-stringParser input
-  | input !! 0 /= '"' = Nothing
-  | otherwise =
-    let str = string (drop 1 input) 0
-     in case str of
-          Just (str) -> Just (JsonString str, drop (length str) input)
+-- ! TODO: handle unicode
+stringParser "" = Nothing
+stringParser ('"':'"':xs) = Just (JsonString "", xs)
+stringParser ('"':x:xs) =
+  case x of
+    '\\'
+      | (xs !! 0) `elem` validEscapeChars ->
+        case stringParser ("\"" ++ drop 1 xs) of
+          Just (JsonString str, rem) ->
+            Just (JsonString (x : (xs !! 0) : str), rem)
           _ -> Nothing
-  where
-    string [] _ = Nothing
-    string (x:xs) i =
-      case x of
-        '\\'
-          | (xs !! 0) `elem` validEscapeChars -> string (drop 1 xs) (i + 2)
-          | otherwise -> Nothing
-        '"' -> Just (take (i + 2) input)
-        _ -> string xs (i + 1)
+      | otherwise -> Nothing
+    _ ->
+      case stringParser ("\"" ++ xs) of
+        Just (JsonString str, rem) -> Just (JsonString (x : str), rem)
+        _ -> Nothing
 
 parsers :: [Parser]
 parsers = [nullParser, boolParser, numberParser, stringParser]
