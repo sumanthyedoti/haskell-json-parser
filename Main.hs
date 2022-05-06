@@ -1,16 +1,18 @@
 import Data.Char
+import Data.List
 
 data JsonValue
   = JsonNull
   | JsonBool Bool
-  | String
-  | Integer
+  | JsonString String
+  | JsonNumber Double
   | Ok
   deriving (Show)
 
 type Parser = String -> Maybe (JsonValue, String)
 
-nullParser, boolParser, spaceParser, colonParser, commaParser :: Parser
+nullParser, boolParser, spaceParser, colonParser, commaParser, numberParser ::
+     Parser
 nullParser input
   | take 4 input == "null" = Just ((JsonNull, drop 4 input))
   | otherwise = Nothing
@@ -32,8 +34,13 @@ commaParser (x:rem)
   | x == ',' = Just (Ok, rem)
 commaParser _ = Nothing
 
+numberParser input =
+  case (reads input) :: [(Double, String)] of
+    [(num, rem)] -> Just (JsonNumber num, rem)
+    _ -> Nothing
+
 parsers :: [Parser]
-parsers = [nullParser, boolParser]
+parsers = [nullParser, boolParser, numberParser]
 
 valueParser :: [Parser] -> String -> Maybe (JsonValue, String)
 valueParser [] input = Nothing
