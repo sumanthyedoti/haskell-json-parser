@@ -13,7 +13,7 @@ data JSON
 
 type Parser = String -> Maybe (JSON, String)
 
-nullParser, boolParser, colonParser, commaParser, numberParser, stringParser ::
+nullParser, boolParser, colonParser, commaParser, numberParser, stringParser, arrayParser ::
      Parser
 nullParser input
   | take 4 input == "null" = Just (NULL, drop 4 input)
@@ -63,8 +63,25 @@ stringParser ('"':x:xs) =
         _ -> Nothing
 stringParser _ = Nothing
 
+arrayParser "" = Nothing
+arrayParser ('[':']':xs) = Just (ARRAY [], xs)
+arrayParser ('[':xs) =
+  case valueParser parsers xs of
+    Nothing -> Nothing
+    Just (val, remaing) ->
+      let (x:xxs) = removeSpace remaing
+       in case x of
+            ']' -> Just (ARRAY [val], xxs)
+            ',' ->
+              case arrayParser ('[' : removeSpace xxs) of
+                Just (ARRAY val', afterVal) ->
+                  Just (ARRAY (val : val'), afterVal)
+                _ -> Nothing
+            _ -> Nothing
+arrayParser _ = Nothing
+
 parsers :: [Parser]
-parsers = [nullParser, boolParser, numberParser, stringParser]
+parsers = [nullParser, boolParser, numberParser, stringParser, arrayParser]
 
 valueParser :: [Parser] -> String -> Maybe (JSON, String)
 valueParser [] _ = Nothing
