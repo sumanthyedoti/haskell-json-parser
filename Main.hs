@@ -1,6 +1,7 @@
 module Main where
 
-import Data.Char
+import qualified Data.Char as C
+import qualified Data.Map as M
 
 data JSON
   = JSNull
@@ -8,7 +9,7 @@ data JSON
   | JSNumber Double
   | JSString String
   | JSArray [JSON]
-  | JSObject [(String, JSON)]
+  | JSObject (M.Map String JSON)
   | Ok
   deriving (Show)
 
@@ -27,7 +28,7 @@ boolParser input
 
 removeSpace :: String -> String
 removeSpace (x:xs)
-  | isSpace x = removeSpace xs
+  | C.isSpace x = removeSpace xs
 removeSpace input = input
 
 numberParser input =
@@ -74,19 +75,19 @@ arrayParser ('[':xs) =
 arrayParser _ = Nothing
 
 objectParser "" = Nothing
-objectParser ('{':'}':xs) = Just (JSObject [], xs)
+objectParser ('{':'}':xs) = Just (JSObject (M.fromList []), xs)
 objectParser ('{':xs) =
   case stringParser (removeSpace xs) of
-    Just (JSString key, (':':afterKey)) ->
+    Just (JSString key, ':':afterKey) ->
       case valueParser parsers (removeSpace afterKey) of
         Just (val, afterVal) ->
           let (x:afterVal') = removeSpace afterVal
            in case x of
-                '}' -> Just (JSObject [(key, val)], afterVal')
+                '}' -> Just (JSObject (M.fromList [(key, val)]), afterVal')
                 ',' ->
                   case objectParser ('{' : removeSpace afterVal') of
                     Just (JSObject remainingKVs, afterKV) ->
-                      Just (JSObject ((key, val) : remainingKVs), afterKV)
+                      Just (JSObject (M.insert key val remainingKVs), afterKV)
                     _ -> Nothing
                 _ -> Nothing
         _ -> Nothing
