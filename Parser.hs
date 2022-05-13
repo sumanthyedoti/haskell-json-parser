@@ -35,8 +35,12 @@ removeSpace (x:xs)
   | C.isSpace x = removeSpace xs
 removeSpace input = input
 
-numberParser ('0':'0':rem) = Nothing
-numberParser ('-':'0':'0':rem) = Nothing
+isDecimalChar c = C.generalCategory c == C.DecimalNumber
+
+numberParser ('0':n:rem)
+  | n == 'x' || isDecimalChar n = Nothing
+numberParser ('-':'0':n:rem)
+  | n == 'x' || isDecimalChar n = Nothing
 numberParser input =
   case reads input :: [(Double, String)] of
     [(num, remaing)] -> Just (JSNumber num, remaing)
@@ -100,41 +104,48 @@ arrayParser "" = Nothing
 arrayParser ('[':']':xs) = Just (JSArray [], xs)
 arrayParser ('[':xs) =
   case valueParser parsers (removeSpace xs) of
+    Nothing -> Nothing
     Just (val, afterVal) ->
       let (x:afterVal') = removeSpace afterVal
        in case x of
             ']' -> Just (JSArray [val], afterVal')
             ',' ->
-              case arrayParser ('[' : removeSpace afterVal') of
-                Just (JSArray remainingVals, afterVals) ->
-                  Just (JSArray (val : remainingVals), afterVals)
-                _ -> Nothing
+              case removeSpace afterVal' of
+                (']':xs) -> Nothing
+                _ ->
+                  case arrayParser ('[' : removeSpace afterVal') of
+                    Nothing -> Nothing
+                    Just (JSArray remainingVals, afterVals) ->
+                      Just (JSArray (val : remainingVals), afterVals)
             _ -> Nothing
-    _ -> Nothing
 arrayParser _ = Nothing
 
 objectParser "" = Nothing
 objectParser ('{':'}':xs) = Just (JSObject (M.fromList []), xs)
 objectParser ('{':xs) =
   case stringParser (removeSpace xs) of
+    Nothing -> Nothing
     Just (JSString key, afterKey) ->
       case removeSpace afterKey of
         ':':afterKey' ->
           case valueParser parsers (removeSpace afterKey') of
+            Nothing -> Nothing
             Just (val, afterVal) ->
               let (x:afterVal') = removeSpace afterVal
                in case x of
                     '}' -> Just (JSObject (M.fromList [(key, val)]), afterVal')
                     ',' ->
-                      case objectParser ('{' : removeSpace afterVal') of
-                        Just (JSObject remainingKVs, afterKV) ->
-                          Just
-                            (JSObject (M.insert key val remainingKVs), afterKV)
-                        _ -> Nothing
+                      case removeSpace afterVal' of
+                        ('}':xs) -> Nothing
+                        _ ->
+                          case objectParser ('{' : removeSpace afterVal') of
+                            Nothing -> Nothing
+                            Just (JSObject remainingKVs, afterKV) ->
+                              Just
+                                ( JSObject (M.insert key val remainingKVs)
+                                , afterKV)
                     _ -> Nothing
-            _ -> Nothing
         _ -> Nothing
-    _ -> Nothing
 objectParser _ = Nothing
 
 parsers :: [Parser]
