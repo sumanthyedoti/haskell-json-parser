@@ -35,6 +35,8 @@ removeSpace (x:xs)
   | C.isSpace x = removeSpace xs
 removeSpace input = input
 
+numberParser ('0':'0':rem) = Nothing
+numberParser ('-':'0':'0':rem) = Nothing
 numberParser input =
   case reads input :: [(Double, String)] of
     [(num, remaing)] -> Just (JSNumber num, remaing)
