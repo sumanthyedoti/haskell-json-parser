@@ -72,32 +72,27 @@ convertUTF8 xs =
     [(hex, rem)] -> C.chr hex : ""
     _ -> ""
 
--- ! TODO: handle unicode
 stringParser "" = Nothing
 stringParser ('"':'"':xs) = Just (JSString "", xs)
-stringParser ('"':x:xs) =
-  case x of
-    '\\'
-      | let char = findChar (head xs)
-         in char /= Nothing ->
-        case stringParser ("\"" ++ drop 1 xs) of
-          Just (JSString str, remaing) ->
-            Just
-              (JSString ((Maybe.fromJust $ findChar $ head xs) : str), remaing)
-          _ -> Nothing
-      | head xs == 'u' ->
+stringParser ('"':x:xs)
+  | x == '\\' =
+    case head xs of
+      'u' ->
         case stringParser ("\"" ++ drop 5 xs) of
-          Just (JSString str, remaing) ->
-            Just (JSString ((convertUTF8 (take 4 (drop 1 xs))) ++ str), remaing)
+          Just (JSString str, rem) ->
+            Just (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)
           _ -> Nothing
-      | otherwise -> Nothing
-    _ ->
-      case x `elem` invaildCharLiterals of
-        False ->
-          case stringParser ("\"" ++ xs) of
-            Just (JSString str, remaing) -> Just (JSString (x : str), remaing)
+      h
+        | findChar h /= Nothing ->
+          case stringParser ("\"" ++ drop 1 xs) of
+            Just (JSString str, rem) ->
+              Just (JSString ((Maybe.fromJust $ findChar $ h) : str), rem)
             _ -> Nothing
-        True -> Nothing
+  | not $ x `elem` invaildCharLiterals =
+    case stringParser ("\"" ++ xs) of
+      Just (JSString str, remaing) -> Just (JSString (x : str), remaing)
+      _ -> Nothing
+  | otherwise = Nothing
 stringParser _ = Nothing
 
 arrayParser "" = Nothing
