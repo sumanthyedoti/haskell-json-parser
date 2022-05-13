@@ -7,7 +7,6 @@ import Parser (parser)
 main :: IO ()
 main = do
   file <- Env.getArgs
-  print file
   content <- readFile $ head file
-  print content
-  print $ parser content
+  putStrLn $ content ++ "\n"
+  putStrLn . show $ parser content

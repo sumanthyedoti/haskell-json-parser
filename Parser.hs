@@ -6,6 +6,7 @@ module Parser
 
 import qualified Data.Char as C
 import qualified Data.Map as M
+import qualified Data.Maybe as Maybe
 import qualified Numeric
 
 data JSON
@@ -41,8 +42,23 @@ numberParser input =
     [(num, remaing)] -> Just (JSNumber num, remaing)
     _ -> Nothing
 
-validEscapeChars :: [Char]
-validEscapeChars = ['\"', '\\', '\b', '\f', '\n', '\r', '\t']
+findChar :: Char -> Maybe Char
+findChar c
+  | null charFound = Nothing
+  | otherwise = Just (snd $ head charFound)
+  where
+    validEscapeChars :: [(Char, Char)]
+    validEscapeChars =
+      [ ('\"', '\"')
+      , ('\\', '\\')
+      , ('b', '\b')
+      , ('f', '\f')
+      , ('n', '\n')
+      , ('r', '\r')
+      , ('t', '\t')
+      ]
+    charFound :: [(Char, Char)]
+    charFound = filter (\x -> fst x == c) validEscapeChars
 
 convertUTF8 :: String -> String
 convertUTF8 xs =
@@ -56,10 +72,12 @@ stringParser ('"':'"':xs) = Just (JSString "", xs)
 stringParser ('"':x:xs) =
   case x of
     '\\'
-      | head xs `elem` validEscapeChars ->
+      | let char = findChar (head xs)
+         in char /= Nothing ->
         case stringParser ("\"" ++ drop 1 xs) of
           Just (JSString str, remaing) ->
-            Just (JSString (x : head xs : str), remaing)
+            Just
+              (JSString ((Maybe.fromJust $ findChar $ head xs) : str), remaing)
           _ -> Nothing
       | head xs == 'u' ->
         case stringParser ("\"" ++ drop 5 xs) of
@@ -132,9 +150,18 @@ valueParser (p:ps) input =
         Nothing -> valueParser ps input
         _ -> res
 
-parser :: String -> JSON
+type Error = String
+
+parser :: String -> Either Error JSON
 parser input =
-  case valueParser parsers input of
-    Just (val, rem)
-      | null $ removeSpace rem -> val
-    _ -> error "could not parse"
+  case input' of
+    ('[':_) -> parse
+    ('{':_) -> parse
+    _ -> Left "FAILED: not a valid JSON"
+  where
+    input' = removeSpace input
+    parse =
+      case valueParser parsers input' of
+        Just (val, rem)
+          | null $ removeSpace rem -> Right val
+        _ -> Left "FAILED: not a valid JSON"
