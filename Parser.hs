@@ -60,6 +60,8 @@ findChar c
     charFound :: [(Char, Char)]
     charFound = filter (\x -> fst x == c) validEscapeChars
 
+invaildCharLiterals = ['\t', '\n']
+
 convertUTF8 :: String -> String
 convertUTF8 xs =
   case Numeric.readHex xs of
@@ -86,17 +88,12 @@ stringParser ('"':x:xs) =
           _ -> Nothing
       | otherwise -> Nothing
     _ ->
-      case isInValidChar of
+      case x `elem` invaildCharLiterals of
         False ->
           case stringParser ("\"" ++ xs) of
             Just (JSString str, remaing) -> Just (JSString (x : str), remaing)
             _ -> Nothing
         True -> Nothing
-  where
-    isInValidChar =
-      if C.ord x == 9 || C.ord x == 10
-        then True
-        else False
 stringParser _ = Nothing
 
 arrayParser "" = Nothing
