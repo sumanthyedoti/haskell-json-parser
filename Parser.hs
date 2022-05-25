@@ -5,6 +5,7 @@ module Parser
 import qualified Data.Char as C
 import qualified Data.Map as M
 import qualified Data.Maybe as Maybe
+import Data.Monoid
 import qualified Numeric
 
 data JSON
@@ -14,7 +15,6 @@ data JSON
   | JSString String
   | JSArray [JSON]
   | JSObject (M.Map String JSON)
-  | Ok
   deriving (Show)
 
 type Parser = String -> Maybe (JSON, String)
@@ -83,12 +83,13 @@ stringParser ('"':x:xs)
             Just (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)
           _ -> Nothing
       h
-        | findChar h /= Nothing ->
+        | Maybe.isJust (findChar h) ->
           case stringParser ("\"" ++ drop 1 xs) of
             Just (JSString str, rem) ->
-              Just (JSString ((Maybe.fromJust $ findChar $ h) : str), rem)
+              Just (JSString (Maybe.fromJust (findChar h) : str), rem)
             _ -> Nothing
-  | not $ x `elem` invaildCharLiterals =
+      _ -> Nothing
+  | x `notElem` invaildCharLiterals =
     case stringParser ("\"" ++ xs) of
       Just (JSString str, remaing) -> Just (JSString (x : str), remaing)
       _ -> Nothing
@@ -109,17 +110,16 @@ arrayParser ('[':xs) =
                 (']':xs) -> Nothing
                 _ ->
                   case arrayParser ('[' : removeSpace afterVal') of
-                    Nothing -> Nothing
                     Just (JSArray remainingVals, afterVals) ->
                       Just (JSArray (val : remainingVals), afterVals)
+                    _ -> Nothing
             _ -> Nothing
 arrayParser _ = Nothing
 
 objectParser "" = Nothing
-objectParser ('{':'}':xs) = Just (JSObject (M.fromList []), xs)
+objectParser ('{':'}':xs) = Just (JSObject M.empty, xs)
 objectParser ('{':xs) =
   case stringParser (removeSpace xs) of
-    Nothing -> Nothing
     Just (JSString key, afterKey) ->
       case removeSpace afterKey of
         ':':afterKey' ->
@@ -134,13 +134,14 @@ objectParser ('{':xs) =
                         ('}':xs) -> Nothing
                         _ ->
                           case objectParser ('{' : removeSpace afterVal') of
-                            Nothing -> Nothing
                             Just (JSObject remainingKVs, afterKV) ->
                               Just
                                 ( JSObject (M.insert key val remainingKVs)
                                 , afterKV)
+                            _ -> Nothing
                     _ -> Nothing
         _ -> Nothing
+    _ -> Nothing
 objectParser _ = Nothing
 
 parsers :: [Parser]
@@ -154,12 +155,8 @@ parsers =
   ]
 
 valueParser :: [Parser] -> String -> Maybe (JSON, String)
-valueParser [] _ = Nothing
-valueParser (p:ps) input =
-  let res = p input
-   in case res of
-        Nothing -> valueParser ps input
-        _ -> res
+valueParser parsers input =
+  getFirst . foldMap (First . (\f -> f input)) $ parsers
 
 type Error = String
 
