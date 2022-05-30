@@ -7,6 +7,6 @@ main :: IO ()
 main = do
   file <- Env.getArgs
   content <- readFile $ head file
-  print $ content ++ "\n"
+  -- print $ content ++ "\n"
   putStrLn ""
   print $ parser content

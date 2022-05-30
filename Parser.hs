@@ -78,39 +78,34 @@ stringParser ('"':x:xs)
   | x == '\\' =
     case head xs of
       'u' ->
-        (\(JSString str, rem) ->
-           (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)) <$>
-        stringParser ("\"" ++ drop 5 xs)
+        stringParser ("\"" ++ drop 5 xs) >>= \(JSString str, rem) ->
+          Just (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)
       h
         | Maybe.isJust (findChar h) ->
-          (\(JSString str, rem) ->
-             (JSString (Maybe.fromJust (findChar h) : str), rem)) <$>
-          stringParser ("\"" ++ drop 1 xs)
+          stringParser ("\"" ++ drop 1 xs) >>= \(JSString str, rem) ->
+            Just (JSString (Maybe.fromJust (findChar h) : str), rem)
       _ -> Nothing
   | x `notElem` invaildCharLiterals =
-    (\(JSString str, remaing) -> (JSString (x : str), remaing)) <$>
-    stringParser ("\"" ++ xs)
+    stringParser ("\"" ++ xs) >>= \(JSString str, remaing) ->
+      Just (JSString (x : str), remaing)
   | otherwise = Nothing
 stringParser _ = Nothing
 
 arrayParser "" = Nothing
 arrayParser ('[':']':xs) = Just (JSArray [], xs)
 arrayParser ('[':xs) =
-  case valueParser parsers (removeSpace xs) of
-    Nothing -> Nothing
-    Just (val, afterVal) ->
-      let (x:afterVal') = removeSpace afterVal
-       in case x of
-            ']' -> Just (JSArray [val], afterVal')
-            ',' ->
-              case removeSpace afterVal' of
-                (']':xs) -> Nothing
-                _ ->
-                  case arrayParser ('[' : removeSpace afterVal') of
-                    Just (JSArray remainingVals, afterVals) ->
-                      Just (JSArray (val : remainingVals), afterVals)
-                    _ -> Nothing
-            _ -> Nothing
+  valueParser parsers (removeSpace xs) >>= \(val, afterVal) ->
+    let (x:afterVal') = removeSpace afterVal
+     in case x of
+          ']' -> Just (JSArray [val], afterVal')
+          ',' ->
+            case removeSpace afterVal' of
+              (']':xs) -> Nothing
+              _ ->
+                arrayParser ('[' : removeSpace afterVal') >>=
+                (\(JSArray remainingVals, afterVals) ->
+                   Just (JSArray (val : remainingVals), afterVals))
+          _ -> Nothing
 arrayParser _ = Nothing
 
 objectParser "" = Nothing
@@ -120,23 +115,19 @@ objectParser ('{':xs) =
     Just (JSString key, afterKey) ->
       case removeSpace afterKey of
         ':':afterKey' ->
-          case valueParser parsers (removeSpace afterKey') of
-            Nothing -> Nothing
-            Just (val, afterVal) ->
-              let (x:afterVal') = removeSpace afterVal
-               in case x of
-                    '}' -> Just (JSObject (M.fromList [(key, val)]), afterVal')
-                    ',' ->
-                      case removeSpace afterVal' of
-                        ('}':xs) -> Nothing
-                        _ ->
-                          case objectParser ('{' : removeSpace afterVal') of
-                            Just (JSObject remainingKVs, afterKV) ->
-                              Just
-                                ( JSObject (M.insert key val remainingKVs)
-                                , afterKV)
-                            _ -> Nothing
-                    _ -> Nothing
+          valueParser parsers (removeSpace afterKey') >>= \(val, afterVal) ->
+            let (x:afterVal') = removeSpace afterVal
+             in case x of
+                  '}' -> Just (JSObject (M.fromList [(key, val)]), afterVal')
+                  ',' ->
+                    case removeSpace afterVal' of
+                      ('}':xs) -> Nothing
+                      _ ->
+                        objectParser ('{' : removeSpace afterVal') >>=
+                        (\(JSObject remainingKVs, afterKV) ->
+                           Just
+                             (JSObject (M.insert key val remainingKVs), afterKV))
+                  _ -> Nothing
         _ -> Nothing
     _ -> Nothing
 objectParser _ = Nothing
