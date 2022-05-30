@@ -78,21 +78,18 @@ stringParser ('"':x:xs)
   | x == '\\' =
     case head xs of
       'u' ->
-        case stringParser ("\"" ++ drop 5 xs) of
-          Just (JSString str, rem) ->
-            Just (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)
-          _ -> Nothing
+        (\(JSString str, rem) ->
+           (JSString (convertUTF8 . take 4 . drop 1 $ xs ++ str), rem)) <$>
+        stringParser ("\"" ++ drop 5 xs)
       h
         | Maybe.isJust (findChar h) ->
-          case stringParser ("\"" ++ drop 1 xs) of
-            Just (JSString str, rem) ->
-              Just (JSString (Maybe.fromJust (findChar h) : str), rem)
-            _ -> Nothing
+          (\(JSString str, rem) ->
+             (JSString (Maybe.fromJust (findChar h) : str), rem)) <$>
+          stringParser ("\"" ++ drop 1 xs)
       _ -> Nothing
   | x `notElem` invaildCharLiterals =
-    case stringParser ("\"" ++ xs) of
-      Just (JSString str, remaing) -> Just (JSString (x : str), remaing)
-      _ -> Nothing
+    (\(JSString str, remaing) -> (JSString (x : str), remaing)) <$>
+    stringParser ("\"" ++ xs)
   | otherwise = Nothing
 stringParser _ = Nothing
 
